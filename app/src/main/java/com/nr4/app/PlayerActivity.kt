@@ -2,11 +2,12 @@ package com.nr4.app
 
 import android.app.AlertDialog
 import android.os.Bundle
-import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 
 class PlayerActivity : AppCompatActivity() {
@@ -14,11 +15,11 @@ class PlayerActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private var liveUrl: String = ""
     private var channelName: String = ""
+    private var userAgent: String = ""
     private var catchupSource: String = ""
     private var catchupDays: Int = 0
 
     private lateinit var titleView: TextView
-    private lateinit var archiveBtn: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,14 +27,25 @@ class PlayerActivity : AppCompatActivity() {
 
         liveUrl = intent.getStringExtra("url") ?: return
         channelName = intent.getStringExtra("name") ?: ""
+        userAgent = intent.getStringExtra("userAgent") ?: ""
         catchupSource = intent.getStringExtra("catchupSource") ?: ""
         catchupDays = intent.getIntExtra("catchupDays", 0)
 
         titleView = findViewById(R.id.title)
         titleView.text = channelName
 
-        player = ExoPlayer.Builder(this).build()
+        val ua = userAgent.ifEmpty { "IPTV/1.0" }
+        val dataSourceFactory = DefaultHttpDataSource.Factory().setUserAgent(ua)
+        player = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .build()
         findViewById<PlayerView>(R.id.player).player = player
+
+        // Долгое нажатие на название канала — открыть архив
+        titleView.setOnLongClickListener {
+            showArchiveDialog()
+            true
+        }
 
         play(liveUrl)
     }
@@ -48,15 +60,9 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    // Разбор catchup-source и подстановка offset
-    // Пример: catchup-source="?offset=-${offset}"
-    // Для архива на 1 час назад: подставляем ${offset} = 3600
     private fun buildArchiveUrl(secondsAgo: Int): String? {
         if (catchupSource.isEmpty()) return null
-
-        // Заменяем ${offset} на количество секунд
         val params = catchupSource.replace("\${offset}", secondsAgo.toString())
-
         return if (liveUrl.contains("?")) {
             liveUrl + "&" + params.removePrefix("?")
         } else {
@@ -75,16 +81,15 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
 
-        val maxHours = catchupDays * 24
-        val options = mutableListOf<String>()
-
-        // предлагаем шаг раз в час, но не больше 12 пунктов
-        val step = if (maxHours > 12) maxHours / 12 else 1
-        var h = step
-        while (h <= maxHours && options.size < 24) {
-            options.add("$h ч назад")
-            h += step
-        }
+        val options = listOf(
+            1 to "1 час назад",
+            2 to "2 часа назад",
+            3 to "3 часа назад",
+            6 to "6 часов назад",
+            12 to "12 часов назад",
+            24 to "1 день назад",
+            48 to "2 дня назад"
+        ).filter { it.first <= catchupDays * 24 }
 
         if (options.isEmpty()) {
             AlertDialog.Builder(this)
@@ -97,18 +102,9 @@ class PlayerActivity : AppCompatActivity() {
 
         AlertDialog.Builder(this)
             .setTitle("Смотреть из архива")
-            .setItems(options.toTypedArray()) { _, which ->
-                val hours = when (which) {
-                    0 -> step
-                    else -> {
-                        var acc = step
-                        var i = 0
-                        while (i < which) { acc += step; i++ }
-                        acc
-                    }
-                }
-                val secondsAgo = hours * 3600
-                val archiveUrl = buildArchiveUrl(secondsAgo)
+            .setItems(options.map { it.second }.toTypedArray()) { _, which ->
+                val hours = options[which].first
+                val archiveUrl = buildArchiveUrl(hours * 3600)
                 if (archiveUrl != null) {
                     titleView.text = "$channelName · архив $hours ч назад"
                     play(archiveUrl)

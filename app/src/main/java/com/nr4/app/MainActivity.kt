@@ -1,6 +1,7 @@
 package com.nr4.app
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
@@ -55,7 +56,6 @@ data class Channel(
 
 class MainActivity : AppCompatActivity() {
 
-    // ── Плеер ────────────────────────────────────────────
     private var player: ExoPlayer? = null
     private lateinit var playerView: PlayerView
     private lateinit var titleView: TextView
@@ -63,7 +63,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var clockView: TextView
     private lateinit var topBar: View
 
-    // ── Список каналов (bottom sheet) ────────────────────
     private lateinit var bottomSheet: View
     private lateinit var list: RecyclerView
     private lateinit var searchInput: EditText
@@ -78,12 +77,10 @@ class MainActivity : AppCompatActivity() {
     private var currentGroupIndex: Int = 0
     private var searchQuery: String = ""
 
-    // ── Состояние ────────────────────────────────────────
     private var sheetVisible = false
     private var loadedFrom: String = ""
     private var currentIndex: Int = 0
 
-    // ── Таймеры ──────────────────────────────────────────
     private val clockHandler = Handler(Looper.getMainLooper())
     private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
     private val clockTick = object : Runnable {
@@ -107,7 +104,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ── Свайпы ───────────────────────────────────────────
     private var downX = 0f
     private var downY = 0f
     private var downT = 0L
@@ -151,7 +147,6 @@ class MainActivity : AppCompatActivity() {
         adapter = ChannelAdapter(emptyList()) { idx -> selectChannel(idx) }
         list.adapter = adapter
 
-        // Кнопки
         findViewById<View>(R.id.btn_settings).setOnClickListener {
             lastActivityTime = System.currentTimeMillis()
             startActivity(Intent(this, SettingsActivity::class.java))
@@ -164,7 +159,6 @@ class MainActivity : AppCompatActivity() {
             reload(src)
         }
 
-        // Поиск
         searchInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -175,15 +169,16 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // Клик по подсказке — открыть список
         hintList.setOnClickListener { showSheet() }
-        bottomSheet.setOnClickListener { /* пустой клик, чтобы не закрывалось */ }
 
-        // Свайпы по всему экрану
         playerView.setOnTouchListener { v, e -> handleTouch(v, e) }
         bottomSheet.setOnTouchListener { v, e -> handleSheetTouch(v, e) }
 
-        // Загружаем плейлист
+        titleView.setOnLongClickListener {
+            showArchiveDialog()
+            true
+        }
+
         val src = activeSource()
         loadedFrom = src
         reload(src)
@@ -193,7 +188,6 @@ class MainActivity : AppCompatActivity() {
         scheduleHideBar()
     }
 
-    // ── Обработка свайпов по плееру ──────────────────────
     @SuppressLint("ClickableViewAccessibility")
     private fun handleTouch(v: View, e: MotionEvent): Boolean {
         when (e.actionMasked) {
@@ -209,18 +203,11 @@ class MainActivity : AppCompatActivity() {
                 lastActivityTime = System.currentTimeMillis()
 
                 if (abs(dy) > 100 && abs(dy) > abs(dx) * 1.5) {
-                    if (dy > 0) {
-                        // Свайп вниз — открыть список
-                        showSheet()
-                    } else {
-                        // Свайп вверх — закрыть
-                        hideSheet()
-                    }
+                    if (dy > 0) showSheet() else hideSheet()
                     v.performClick()
                     return true
                 }
                 if (abs(dx) > 80 && abs(dx) > abs(dy) * 1.5) {
-                    // Свайп влево/вправо — переключение каналов
                     if (dx < 0) switchChannel(1) else switchChannel(-1)
                     v.performClick()
                     return true
@@ -236,7 +223,6 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
-    // ── Свайпы по bottom sheet ───────────────────────────
     @SuppressLint("ClickableViewAccessibility")
     private fun handleSheetTouch(v: View, e: MotionEvent): Boolean {
         when (e.actionMasked) {
@@ -251,12 +237,10 @@ class MainActivity : AppCompatActivity() {
                 lastActivityTime = System.currentTimeMillis()
 
                 if (abs(dy) > 100 && abs(dy) > abs(dx) * 1.5 && dy > 0) {
-                    // Свайп вниз по шторке — закрыть
                     hideSheet()
                     return true
                 }
                 if (abs(dx) > 100 && abs(dx) > abs(dy) * 1.5) {
-                    // Свайп влево/вправо — переключение групп
                     if (dx < 0) nextGroup() else prevGroup()
                     return true
                 }
@@ -266,52 +250,33 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
-    // ── Управление кнопками пульта ───────────────────────
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         lastActivityTime = System.currentTimeMillis()
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_DOWN -> {
-                if (!sheetVisible) {
-                    showSheet()
-                    return true
-                }
+                if (!sheetVisible) { showSheet(); return true }
                 return super.onKeyDown(keyCode, event)
             }
             KeyEvent.KEYCODE_DPAD_UP -> {
-                if (sheetVisible) {
-                    hideSheet()
-                    return true
-                }
+                if (sheetVisible) { hideSheet(); return true }
                 return super.onKeyDown(keyCode, event)
             }
             KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (sheetVisible) {
-                    prevGroup()
-                    return true
-                }
-                switchChannel(-1)
-                return true
+                if (sheetVisible) { prevGroup(); return true }
+                switchChannel(-1); return true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (sheetVisible) {
-                    nextGroup()
-                    return true
-                }
-                switchChannel(1)
-                return true
+                if (sheetVisible) { nextGroup(); return true }
+                switchChannel(1); return true
             }
             KeyEvent.KEYCODE_BACK -> {
-                if (sheetVisible) {
-                    hideSheet()
-                    return true
-                }
+                if (sheetVisible) { hideSheet(); return true }
                 return super.onKeyDown(keyCode, event)
             }
         }
         return super.onKeyDown(keyCode, event)
     }
 
-    // ── Bottom sheet ─────────────────────────────────────
     private fun showSheet() {
         if (sheetVisible) return
         sheetVisible = true
@@ -354,7 +319,6 @@ class MainActivity : AppCompatActivity() {
         c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
 
-    // ── Загрузка плейлиста ───────────────────────────────
     private fun reload(src: String) {
         statusView.text = "Загрузка плейлиста..."
         CoroutineScope(Dispatchers.IO).launch {
@@ -368,7 +332,6 @@ class MainActivity : AppCompatActivity() {
                     searchInput.setText("")
                     renderChips()
                     applyFilter()
-                    // Автоматически играем первый канал
                     if (visibleChannels.isNotEmpty()) {
                         currentIndex = 0
                         play(0)
@@ -422,7 +385,6 @@ class MainActivity : AppCompatActivity() {
         return out
     }
 
-    // ── Группы ───────────────────────────────────────────
     private fun buildGroups(channels: List<Channel>): List<String> {
         val groups = linkedMapOf<String, Int>()
         groups["Все"] = channels.size
@@ -482,21 +444,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyFilter() {
         val currentGroup = groupsList.getOrNull(currentGroupIndex)
-        var list = if (currentGroup == null || currentGroup == "Все") allChannels
+        var l = if (currentGroup == null || currentGroup == "Все") allChannels
         else allChannels.filter { it.group.ifEmpty { "Без группы" } == currentGroup }
-        if (searchQuery.isNotEmpty()) list = list.filter { it.name.lowercase().contains(searchQuery) }
-        visibleChannels = list
-        statusView.text = "Каналов: ${list.size}"
-        adapter?.update(list)
-
-        // Если текущий канал не в этом списке — переключить на первый
-        if (visibleChannels.isNotEmpty() && (currentIndex !in visibleChannels.indices || !visibleChannels.contains(visibleChannels.getOrNull(currentIndex)))) {
-            currentIndex = 0
-            play(0)
-        }
+        if (searchQuery.isNotEmpty()) l = l.filter { it.name.lowercase().contains(searchQuery) }
+        visibleChannels = l
+        statusView.text = "Каналов: ${l.size}"
+        adapter?.update(l)
     }
 
-    // ── Плеер ────────────────────────────────────────────
     private fun play(index: Int) {
         if (index !in visibleChannels.indices) return
         currentIndex = index
@@ -562,6 +517,64 @@ class MainActivity : AppCompatActivity() {
         val br = if (bitrate > 0) "${bitrate / 1000} kbps" else "?"
         val cd = codec.substringBefore('.').uppercase().replace("VIDEO/", "").replace("AUDIO/", "")
         infoView.text = "$res · $br · $cd"
+    }
+
+    private fun buildArchiveUrl(secondsAgo: Int): String? {
+        val ch = visibleChannels.getOrNull(currentIndex) ?: return null
+        if (ch.catchupSource.isEmpty()) return null
+        val params = ch.catchupSource.replace("\${offset}", secondsAgo.toString())
+        return if (ch.url.contains("?")) ch.url + "&" + params.removePrefix("?")
+        else if (params.startsWith("?")) ch.url + params else ch.url + "?" + params
+    }
+
+    private fun showArchiveDialog() {
+        val ch = visibleChannels.getOrNull(currentIndex) ?: return
+        if (ch.catchupDays <= 0 || ch.catchupSource.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle("Архив недоступен")
+                .setMessage("Для этого канала архив не поддерживается.")
+                .setPositiveButton("OK", null).show()
+            return
+        }
+        val options = listOf(
+            1 to "1 час назад", 2 to "2 часа назад", 3 to "3 часа назад",
+            6 to "6 часов назад", 12 to "12 часов назад",
+            24 to "1 день назад", 48 to "2 дня назад"
+        ).filter { it.first <= ch.catchupDays * 24 }
+        if (options.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle("Архив недоступен")
+                .setMessage("Нет доступных интервалов.")
+                .setPositiveButton("OK", null).show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Смотреть из архива")
+            .setItems(options.map { it.second }.toTypedArray()) { _, which ->
+                val hours = options[which].first
+                buildArchiveUrl(hours * 3600)?.let { url ->
+                    titleView.text = "${ch.name} · архив $hours ч назад"
+                    lastActivityTime = System.currentTimeMillis()
+                    val ds = DefaultHttpDataSource.Factory()
+                        .setUserAgent(ch.userAgent.ifEmpty { "IPTV/1.0" })
+                        .setAllowCrossProtocolRedirects(true)
+                    player?.release()
+                    player = ExoPlayer.Builder(this)
+                        .setMediaSourceFactory(DefaultMediaSourceFactory(ds))
+                        .build()
+                    playerView.player = player
+                    attachAnalytics()
+                    val b = MediaItem.Builder().setUri(url)
+                    if (url.contains(".m3u8") || url.contains("kinowalk.hopto.org")) {
+                        b.setMimeType(MimeTypes.APPLICATION_M3U8)
+                    }
+                    player?.apply {
+                        setMediaItem(b.build())
+                        prepare(); playWhenReady = true
+                    }
+                }
+            }
+            .setNegativeButton("Отмена", null).show()
     }
 
     override fun onResume() {

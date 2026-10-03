@@ -5,6 +5,7 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
+    <!-- Плеер на весь экран -->
     <androidx.media3.ui.PlayerView
         android:id="@+id/player"
         android:layout_width="match_parent"
@@ -14,6 +15,7 @@
         app:controller_layout_id="@layout/exo_controls"
         app:resize_mode="fit" />
 
+    <!-- Верхняя панель (инфо о канале, часы) -->
     <LinearLayout
         android:id="@+id/top_bar"
         android:orientation="vertical"
@@ -48,5 +50,130 @@
             android:textSize="11sp"
             android:layout_marginTop="2dp"
             android:fontFamily="monospace" />
+    </LinearLayout>
+
+    <!-- Кнопка-подсказка для вызова списка -->
+    <TextView
+        android:id="@+id/hint_list"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="24dp"
+        android:padding="10dp"
+        android:text="Список каналов ▼"
+        android:textColor="#ccffffff"
+        android:textSize="13sp"
+        android:background="#66000000" />
+
+    <!-- Выезжающая панель со списком каналов -->
+    <LinearLayout
+        android:id="@+id/bottom_sheet"
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="#0f1115"
+        android:visibility="gone"
+        android:elevation="12dp">
+
+        <!-- Ручка для свайпа -->
+        <View
+            android:layout_width="40dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="8dp"
+            android:background="#666a70" />
+
+        <!-- Строка поиска и кнопки -->
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="8dp">
+
+            <EditText
+                android:id="@+id/search"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Поиск канала..."
+                android:textColorHint="#666a70"
+                android:textColor="#e6e6e6"
+                android:textSize="15sp"
+                android:background="#23272e"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:inputType="text"
+                android:imeOptions="actionSearch"
+                android:maxLines="1" />
+
+            <TextView
+                android:id="@+id/btn_refresh"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:text="🔄"
+                android:textColor="#e6e6e6"
+                android:textSize="20sp"
+                android:background="?android:attr/selectableItemBackground" />
+
+            <TextView
+                android:id="@+id/btn_settings"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:text="⚙"
+                android:textColor="#e6e6e6"
+                android:textSize="22sp"
+                android:background="?android:attr/selectableItemBackground" />
+        </LinearLayout>
+
+        <!-- Чипы групп -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="6dp">
+
+            <LinearLayout
+                android:id="@+id/chips"
+                android:orientation="horizontal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </HorizontalScrollView>
+
+        <!-- Счётчик каналов -->
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textColor="#8a8f98"
+            android:textSize="13sp"
+            android:text="Загрузка плейлиста..." />
+
+        <!-- Список каналов -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:minHeight="240dp" />
     </LinearLayout>
 </FrameLayout>

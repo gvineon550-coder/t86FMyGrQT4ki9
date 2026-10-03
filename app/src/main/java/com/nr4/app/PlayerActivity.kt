@@ -59,6 +59,27 @@ class PlayerActivity : AppCompatActivity() {
         barVisible = false
     }
 
+    // ── Авто-выход при простое 30 минут ──────────────────
+    private val IDLE_TIMEOUT_MS = 30L * 60L * 1000L  // 30 минут
+    private val IDLE_CHECK_MS = 30_000L              // проверять каждые 30 сек
+    private var lastPlayingTime: Long = System.currentTimeMillis()
+
+    private val idleCheck = object : Runnable {
+        override fun run() {
+            val playing = player?.isPlaying == true
+            if (playing) {
+                lastPlayingTime = System.currentTimeMillis()
+            }
+            val idle = System.currentTimeMillis() - lastPlayingTime
+            if (idle >= IDLE_TIMEOUT_MS) {
+                exitApp()
+                return
+            }
+            clockHandler.postDelayed(this, IDLE_CHECK_MS)
+        }
+    }
+    // ─────────────────────────────────────────────────────
+
     private var downX = 0f
     private var downY = 0f
     private var downT = 0L
@@ -124,7 +145,17 @@ class PlayerActivity : AppCompatActivity() {
 
         if (urls.isNotEmpty() && currentIndex in urls.indices) play(currentIndex)
         clockHandler.post(clockTick)
+        clockHandler.post(idleCheck)
         scheduleHideBar()
+    }
+
+    private fun exitApp() {
+        try {
+            player?.release()
+            player = null
+        } catch (_: Exception) {}
+        finishAffinity()
+        Runtime.getRuntime().exit(0)
     }
 
     private fun toggleBar() {
@@ -177,6 +208,7 @@ class PlayerActivity : AppCompatActivity() {
         val ua = uas.getOrNull(index) ?: ""
 
         titleView.text = if (group.isNotEmpty()) "$name  ·  $group" else name
+        lastPlayingTime = System.currentTimeMillis()
 
         val useUa = ua.ifEmpty { "IPTV/1.0" }
         val ds = DefaultHttpDataSource.Factory()
@@ -250,6 +282,7 @@ class PlayerActivity : AppCompatActivity() {
                 buildArchiveUrl(hours * 3600)?.let { url ->
                     val name = names.getOrNull(currentIndex) ?: ""
                     titleView.text = "$name · архив $hours ч назад"
+                    lastPlayingTime = System.currentTimeMillis()
                     val ua = uas.getOrNull(currentIndex) ?: ""
                     val ds = DefaultHttpDataSource.Factory()
                         .setUserAgent(ua.ifEmpty { "IPTV/1.0" })
@@ -268,12 +301,22 @@ class PlayerActivity : AppCompatActivity() {
             .setNegativeButton("Отмена", null).show()
     }
 
-    override fun onPause() { super.onPause(); player?.pause() }
-    override fun onResume() { super.onResume(); hideSystemBars() }
+    override fun onPause() {
+        super.onPause()
+        player?.pause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        hideSystemBars()
+        lastPlayingTime = System.currentTimeMillis()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         clockHandler.removeCallbacks(clockTick)
         clockHandler.removeCallbacks(hideBarRunnable)
+        clockHandler.removeCallbacks(idleCheck)
         player?.release(); player = null
     }
 }

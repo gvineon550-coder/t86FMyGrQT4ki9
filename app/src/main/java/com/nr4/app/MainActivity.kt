@@ -2,9 +2,12 @@ package com.nr4.app
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -41,12 +44,36 @@ class MainActivity : AppCompatActivity() {
     private var adapter: ChannelAdapter? = null
     private var loadedFrom: String = ""
 
+    // ── Авто-выход при простое ───────────────────────────
+    private val IDLE_TIMEOUT_MS = 30L * 60L * 1000L
+    private val IDLE_CHECK_MS = 30_000L
+    private var lastTouchTime: Long = System.currentTimeMillis()
+    private var backgroundedAt: Long = 0L
+
+    private val idleHandler = Handler(Looper.getMainLooper())
+    private val idleCheck = object : Runnable {
+        override fun run() {
+            val idle = System.currentTimeMillis() - lastTouchTime
+            if (idle >= IDLE_TIMEOUT_MS) {
+                exitApp()
+                return
+            }
+            idleHandler.postDelayed(this, IDLE_CHECK_MS)
+        }
+    }
+    // ─────────────────────────────────────────────────────
+
     private fun builtInUrl(): String =
         "https" + "://" + "gvineon550-coder" + ".github.io/" + "8Z6evf3ezzM469" + "/all_checked.m3u8"
 
     private fun activeSource(): String {
         val a = AppPrefs.getActive(this)
         return a.ifEmpty { builtInUrl() }
+    }
+
+    private fun exitApp() {
+        finishAffinity()
+        Runtime.getRuntime().exit(0)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,10 +84,12 @@ class MainActivity : AppCompatActivity() {
         list.layoutManager = LinearLayoutManager(this)
 
         findViewById<View>(R.id.btn_settings).setOnClickListener {
+            lastTouchTime = System.currentTimeMillis()
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
         findViewById<View>(R.id.btn_refresh).setOnClickListener {
+            lastTouchTime = System.currentTimeMillis()
             val src = activeSource()
             loadedFrom = src
             Toast.makeText(this, "Обновляю...", Toast.LENGTH_SHORT).show()
@@ -72,22 +101,61 @@ class MainActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: Editable?) {
+                lastTouchTime = System.currentTimeMillis()
                 searchQuery = s?.toString()?.trim()?.lowercase() ?: ""
                 applyFilter()
             }
         })
 
-        adapter = ChannelAdapter(emptyList()) { idx -> openPlayer(idx) }
+        // Отслеживаем касания по всему экрану
+        val root = findViewById<View>(android.R.id.content)
+        root.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                lastTouchTime = System.currentTimeMillis()
+            }
+            false
+        }
+
+        adapter = ChannelAdapter(emptyList()) { idx ->
+            lastTouchTime = System.currentTimeMillis()
+            openPlayer(idx)
+        }
         list.adapter = adapter
     }
 
     override fun onResume() {
         super.onResume()
+
+        // Проверяем: если были в фоне долго — закрываемся
+        if (backgroundedAt > 0) {
+            val away = System.currentTimeMillis() - backgroundedAt
+            if (away >= IDLE_TIMEOUT_MS) {
+                exitApp()
+                return
+            }
+            backgroundedAt = 0L
+        }
+
+        lastTouchTime = System.currentTimeMillis()
+        idleHandler.removeCallbacks(idleCheck)
+        idleHandler.post(idleCheck)
+
         val src = activeSource()
         if (src != loadedFrom) {
             loadedFrom = src
             reload(src)
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        idleHandler.removeCallbacks(idleCheck)
+        backgroundedAt = System.currentTimeMillis()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        idleHandler.removeCallbacks(idleCheck)
     }
 
     private fun reload(src: String) {
@@ -191,6 +259,7 @@ class MainActivity : AppCompatActivity() {
                 setTextColor(if (isActive) dark else muted)
                 setBackgroundColor(if (isActive) accent else border)
                 setOnClickListener {
+                    lastTouchTime = System.currentTimeMillis()
                     currentGroup = if (g == "Все") null else g
                     renderChips(); applyFilter()
                 }

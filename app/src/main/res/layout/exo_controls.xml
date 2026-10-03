@@ -55,7 +55,7 @@
             android:layout_height="48dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_media_rew"
-            android:contentDescription="Назад" />
+            android:contentDescription="Предыдущий" />
 
         <ImageButton
             android:id="@+id/exo_play_pause"
@@ -71,7 +71,7 @@
             android:layout_height="48dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_media_ff"
-            android:contentDescription="Вперёд" />
+            android:contentDescription="Следующий" />
 
         <ImageButton
             android:id="@+id/exo_fullscreen"

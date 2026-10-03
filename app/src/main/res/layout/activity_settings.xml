@@ -11,82 +11,105 @@
         android:padding="16dp">
 
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:text="Настройки"
             android:textColor="#e6e6e6"
             android:textSize="22sp"
             android:textStyle="bold"
-            android:paddingBottom="16dp" />
-
-        <TextView
-            android:id="@+id/item_playlists"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="16dp"
-            android:text="📺  Плейлисты"
-            android:textColor="#e6e6e6"
-            android:textSize="16sp"
-            android:background="?android:attr/selectableItemBackground" />
+            android:paddingBottom="20dp" />
+
+        <TextView
+            android:text="ПЛЕЙЛИСТЫ"
+            android:textColor="#8a8f98"
+            android:textSize="12sp"
+            android:textAllCaps="true"
+            android:letterSpacing="0.1"
+            android:paddingBottom="8dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/active_url"
+            android:textColor="#666a70"
+            android:textSize="11sp"
+            android:paddingBottom="12dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="12dp">
+
+            <Button
+                android:id="@+id/btn_add_url"
+                android:text="+ По URL"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp" />
+
+            <Button
+                android:id="@+id/btn_add_file"
+                android:text="+ Из файла"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/list_playlists"
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="20dp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#23272e"
+            android:layout_marginBottom="12dp" />
 
         <TextView
             android:id="@+id/item_epg"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:padding="16dp"
-            android:text="📅  Программа передач (EPG)"
+            android:text="📅  Программа передач (EPG) — скоро"
             android:textColor="#e6e6e6"
             android:textSize="16sp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:background="?android:attr/selectableItemBackground" />
 
         <TextView
             android:id="@+id/item_decoder"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:padding="16dp"
-            android:text="🎞  Декодер"
+            android:text="🎞  Декодер — скоро"
             android:textColor="#e6e6e6"
             android:textSize="16sp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:background="?android:attr/selectableItemBackground" />
 
         <TextView
             android:id="@+id/item_sleep"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:padding="16dp"
-            android:text="⏰  Таймер сна"
+            android:text="⏰  Таймер сна — скоро"
             android:textColor="#e6e6e6"
             android:textSize="16sp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:background="?android:attr/selectableItemBackground" />
 
         <TextView
             android:id="@+id/item_parental"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:padding="16dp"
-            android:text="🔒  Родительский контроль"
+            android:text="🔒  Родительский контроль — скоро"
             android:textColor="#e6e6e6"
             android:textSize="16sp"
-            android:background="?android:attr/selectableItemBackground" />
-
-        <TextView
-            android:id="@+id/item_theme"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="16dp"
-            android:text="🎨  Тема оформления"
-            android:textColor="#e6e6e6"
-            android:textSize="16sp"
-            android:background="?android:attr/selectableItemBackground" />
-
-        <TextView
-            android:id="@+id/item_about"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="16dp"
-            android:text="ℹ️  О приложении"
-            android:textColor="#e6e6e6"
-            android:textSize="16sp"
             android:background="?android:attr/selectableItemBackground" />
     </LinearLayout>
 </ScrollView>

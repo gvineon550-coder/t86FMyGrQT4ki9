@@ -62,13 +62,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var infoView: TextView
     private lateinit var clockView: TextView
     private lateinit var topBar: View
+    private lateinit var hintList: TextView
 
-    private lateinit var bottomSheet: View
+    private lateinit var sidePanel: View
+    private lateinit var scrim: View
     private lateinit var list: RecyclerView
     private lateinit var searchInput: EditText
     private lateinit var chipsWrap: LinearLayout
     private lateinit var statusView: TextView
-    private lateinit var hintList: TextView
     private var adapter: ChannelAdapter? = null
 
     private var allChannels: List<Channel> = emptyList()
@@ -77,7 +78,7 @@ class MainActivity : AppCompatActivity() {
     private var currentGroupIndex: Int = 0
     private var searchQuery: String = ""
 
-    private var sheetVisible = false
+    private var panelVisible = false
     private var loadedFrom: String = ""
     private var currentIndex: Int = 0
 
@@ -136,12 +137,20 @@ class MainActivity : AppCompatActivity() {
         infoView = findViewById(R.id.stream_info)
         clockView = findViewById(R.id.clock)
         topBar = findViewById(R.id.top_bar)
-        bottomSheet = findViewById(R.id.bottom_sheet)
         hintList = findViewById(R.id.hint_list)
+        sidePanel = findViewById(R.id.side_panel)
+        scrim = findViewById(R.id.scrim)
         list = findViewById(R.id.list)
         searchInput = findViewById(R.id.search)
         chipsWrap = findViewById(R.id.chips)
         statusView = findViewById(R.id.status)
+
+        // Ширина панели 85% от ширины экрана
+        val dm = resources.displayMetrics
+        val panelWidth = (dm.widthPixels * 0.85).toInt()
+        val lp = sidePanel.layoutParams
+        lp.width = panelWidth
+        sidePanel.layoutParams = lp
 
         list.layoutManager = LinearLayoutManager(this)
         adapter = ChannelAdapter(emptyList()) { idx -> selectChannel(idx) }
@@ -169,10 +178,11 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        hintList.setOnClickListener { showSheet() }
+        hintList.setOnClickListener { showPanel() }
+        scrim.setOnClickListener { hidePanel() }
 
-        playerView.setOnTouchListener { v, e -> handleTouch(v, e) }
-        bottomSheet.setOnTouchListener { v, e -> handleSheetTouch(v, e) }
+        playerView.setOnTouchListener { v, e -> handlePlayerTouch(v, e) }
+        sidePanel.setOnTouchListener { v, e -> handlePanelTouch(v, e) }
 
         titleView.setOnLongClickListener {
             showArchiveDialog()
@@ -189,7 +199,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun handleTouch(v: View, e: MotionEvent): Boolean {
+    private fun handlePlayerTouch(v: View, e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = e.x; downY = e.y; downT = System.currentTimeMillis()
@@ -202,13 +212,14 @@ class MainActivity : AppCompatActivity() {
                 val dt = System.currentTimeMillis() - downT
                 lastActivityTime = System.currentTimeMillis()
 
-                if (abs(dy) > 100 && abs(dy) > abs(dx) * 1.5) {
-                    if (dy > 0) showSheet() else hideSheet()
-                    v.performClick()
-                    return true
-                }
-                if (abs(dx) > 80 && abs(dx) > abs(dy) * 1.5) {
-                    if (dx < 0) switchChannel(1) else switchChannel(-1)
+                if (abs(dx) > 90 && abs(dx) > abs(dy) * 1.5) {
+                    if (dx > 0) {
+                        // Свайп вправо — открыть панель
+                        showPanel()
+                    } else {
+                        // Свайп влево — переключение канала
+                        switchChannel(1)
+                    }
                     v.performClick()
                     return true
                 }
@@ -224,7 +235,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun handleSheetTouch(v: View, e: MotionEvent): Boolean {
+    private fun handlePanelTouch(v: View, e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = e.x; downY = e.y; downT = System.currentTimeMillis()
@@ -236,13 +247,12 @@ class MainActivity : AppCompatActivity() {
                 val dy = e.y - downY
                 lastActivityTime = System.currentTimeMillis()
 
-                if (abs(dy) > 100 && abs(dy) > abs(dx) * 1.5 && dy > 0) {
-                    hideSheet()
-                    return true
-                }
                 if (abs(dx) > 100 && abs(dx) > abs(dy) * 1.5) {
-                    if (dx < 0) nextGroup() else prevGroup()
-                    return true
+                    if (dx < 0) {
+                        // Свайп влево по панели — закрыть
+                        hidePanel()
+                        return true
+                    }
                 }
                 return false
             }
@@ -253,43 +263,62 @@ class MainActivity : AppCompatActivity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         lastActivityTime = System.currentTimeMillis()
         when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                if (panelVisible) {
+                    // Назад по группам
+                    prevGroup()
+                    return true
+                }
+                switchChannel(-1)
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                if (panelVisible) {
+                    nextGroup()
+                    return true
+                }
+                switchChannel(1)
+                return true
+            }
             KeyEvent.KEYCODE_DPAD_DOWN -> {
-                if (!sheetVisible) { showSheet(); return true }
+                if (!panelVisible) {
+                    showPanel()
+                    return true
+                }
                 return super.onKeyDown(keyCode, event)
             }
             KeyEvent.KEYCODE_DPAD_UP -> {
-                if (sheetVisible) { hideSheet(); return true }
+                if (panelVisible) {
+                    hidePanel()
+                    return true
+                }
                 return super.onKeyDown(keyCode, event)
             }
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (sheetVisible) { prevGroup(); return true }
-                switchChannel(-1); return true
-            }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (sheetVisible) { nextGroup(); return true }
-                switchChannel(1); return true
-            }
             KeyEvent.KEYCODE_BACK -> {
-                if (sheetVisible) { hideSheet(); return true }
+                if (panelVisible) {
+                    hidePanel()
+                    return true
+                }
                 return super.onKeyDown(keyCode, event)
             }
         }
         return super.onKeyDown(keyCode, event)
     }
 
-    private fun showSheet() {
-        if (sheetVisible) return
-        sheetVisible = true
-        bottomSheet.visibility = View.VISIBLE
+    private fun showPanel() {
+        if (panelVisible) return
+        panelVisible = true
+        sidePanel.visibility = View.VISIBLE
+        scrim.visibility = View.VISIBLE
         hintList.visibility = View.GONE
         topBar.visibility = View.GONE
-        scheduleHideBar()
     }
 
-    private fun hideSheet() {
-        if (!sheetVisible) return
-        sheetVisible = false
-        bottomSheet.visibility = View.GONE
+    private fun hidePanel() {
+        if (!panelVisible) return
+        panelVisible = false
+        sidePanel.visibility = View.GONE
+        scrim.visibility = View.GONE
         hintList.visibility = View.VISIBLE
         topBar.visibility = View.VISIBLE
         scheduleHideBar()
@@ -308,7 +337,7 @@ class MainActivity : AppCompatActivity() {
     private fun scheduleHideBar() {
         barHideRunnable?.let { clockHandler.removeCallbacks(it) }
         barHideRunnable = Runnable {
-            if (!sheetVisible) topBar.visibility = View.GONE
+            if (!panelVisible) topBar.visibility = View.GONE
         }
         clockHandler.postDelayed(barHideRunnable!!, 5000)
     }
@@ -488,7 +517,7 @@ class MainActivity : AppCompatActivity() {
     private fun selectChannel(idx: Int) {
         lastActivityTime = System.currentTimeMillis()
         play(idx)
-        hideSheet()
+        hidePanel()
     }
 
     private fun switchChannel(delta: Int) {
@@ -532,7 +561,7 @@ class MainActivity : AppCompatActivity() {
         if (ch.catchupDays <= 0 || ch.catchupSource.isEmpty()) {
             AlertDialog.Builder(this)
                 .setTitle("Архив недоступен")
-                .setMessage("Для этого канала архив не поддерживается.")
+                .setMessage("Для этого канала архив не поддерживается.\n\nУбедись, что активен плейлист с архивом (например, Zabava) — в настройках ⚙.")
                 .setPositiveButton("OK", null).show()
             return
         }

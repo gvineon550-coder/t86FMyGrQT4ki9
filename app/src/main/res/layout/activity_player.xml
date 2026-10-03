@@ -50,29 +50,6 @@
             android:fontFamily="monospace" />
     </LinearLayout>
 
-    <!-- Полоса-ручка слева для свайпа -->
-    <View
-        android:id="@+id/edge_handle"
-        android:layout_width="12dp"
-        android:layout_height="100dp"
-        android:layout_gravity="start|center_vertical"
-        android:layout_marginStart="4dp"
-        android:background="#66ffffff" />
-
-    <!-- Подсказка для смартфона -->
-    <TextView
-        android:id="@+id/hint_list"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|start"
-        android:layout_marginStart="16dp"
-        android:layout_marginBottom="16dp"
-        android:padding="10dp"
-        android:text="▶ Список каналов\n(свайп от левого края)"
-        android:textColor="#ccffffff"
-        android:textSize="13sp"
-        android:background="#66000000" />
-
     <View
         android:id="@+id/scrim"
         android:layout_width="match_parent"
@@ -85,46 +62,50 @@
     <LinearLayout
         android:id="@+id/side_panel"
         android:orientation="vertical"
-        android:layout_width="320dp"
+        android:layout_width="280dp"
         android:layout_height="match_parent"
-        android:layout_gravity="start"
+        android:layout_gravity="end"
         android:background="#0f1115"
         android:visibility="gone"
         android:elevation="12dp">
 
+        <!-- Строка поиска -->
+        <EditText
+            android:id="@+id/search"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="12dp"
+            android:hint="Поиск канала..."
+            android:textColorHint="#666a70"
+            android:textColor="#e6e6e6"
+            android:textSize="15sp"
+            android:background="#23272e"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:inputType="text"
+            android:imeOptions="actionSearch"
+            android:maxLines="1" />
+
+        <!-- Кнопки -->
         <LinearLayout
             android:orientation="horizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
-            android:paddingTop="12dp">
-
-            <EditText
-                android:id="@+id/search"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="Поиск канала..."
-                android:textColorHint="#666a70"
-                android:textColor="#e6e6e6"
-                android:textSize="15sp"
-                android:background="#23272e"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
-                android:paddingTop="10dp"
-                android:paddingBottom="10dp"
-                android:inputType="text"
-                android:imeOptions="actionSearch"
-                android:maxLines="1" />
+            android:paddingTop="8dp"
+            android:gravity="center_vertical">
 
             <TextView
                 android:id="@+id/btn_playlist"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
+                android:layout_weight="1"
+                android:gravity="center"
                 android:paddingTop="10dp"
                 android:paddingBottom="10dp"
                 android:text="📂"
@@ -134,10 +115,10 @@
 
             <TextView
                 android:id="@+id/btn_refresh"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
+                android:layout_weight="1"
+                android:gravity="center"
                 android:paddingTop="10dp"
                 android:paddingBottom="10dp"
                 android:text="🔄"
@@ -147,10 +128,10 @@
 
             <TextView
                 android:id="@+id/btn_settings"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
+                android:layout_weight="1"
+                android:gravity="center"
                 android:paddingTop="10dp"
                 android:paddingBottom="10dp"
                 android:text="⚙"
@@ -168,6 +149,8 @@
             android:paddingTop="4dp"
             android:textColor="#666a70"
             android:textSize="11sp"
+            android:singleLine="true"
+            android:ellipsize="end"
             android:text="" />
 
         <HorizontalScrollView

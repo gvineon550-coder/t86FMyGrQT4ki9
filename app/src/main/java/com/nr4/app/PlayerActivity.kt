@@ -1,9 +1,11 @@
 package com.nr4.app
 
+import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
@@ -23,6 +25,7 @@ import androidx.media3.ui.PlayerView
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
 
 class PlayerActivity : AppCompatActivity() {
 
@@ -56,6 +59,11 @@ class PlayerActivity : AppCompatActivity() {
         barVisible = false
     }
 
+    private var downX = 0f
+    private var downY = 0f
+    private var downT = 0L
+
+    @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
@@ -73,10 +81,7 @@ class PlayerActivity : AppCompatActivity() {
         clockView = findViewById(R.id.clock)
         topBar = findViewById(R.id.top_bar)
 
-        titleView.setOnLongClickListener {
-            showArchiveDialog()
-            true
-        }
+        titleView.setOnLongClickListener { showArchiveDialog(); true }
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -85,40 +90,63 @@ class PlayerActivity : AppCompatActivity() {
         player = ExoPlayer.Builder(this).build()
         val pv = findViewById<PlayerView>(R.id.player)
         pv.player = player
+        attachAnalytics()
 
+        pv.setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = e.x; downY = e.y; downT = System.currentTimeMillis()
+                    false
+                }
+                MotionEvent.ACTION_UP -> {
+                    val dx = e.x - downX
+                    val dy = e.y - downY
+                    val dt = System.currentTimeMillis() - downT
+
+                    if (abs(dx) > 80 && abs(dx) > abs(dy) * 1.5) {
+                        if (dx < 0) switchChannel(1) else switchChannel(-1)
+                        v.performClick()
+                        true
+                    } else if (abs(dx) < 20 && abs(dy) < 20 && dt < 300) {
+                        toggleBar()
+                        v.performClick()
+                        true
+                    } else {
+                        false
+                    }
+                }
+                else -> false
+            }
+        }
+
+        findViewById<ImageButton>(R.id.exo_rew).setOnClickListener { switchChannel(-1) }
+        findViewById<ImageButton>(R.id.exo_ffwd).setOnClickListener { switchChannel(1) }
+
+        if (urls.isNotEmpty() && currentIndex in urls.indices) play(currentIndex)
+        clockHandler.post(clockTick)
+        scheduleHideBar()
+    }
+
+    private fun toggleBar() {
+        if (barVisible) {
+            topBar.visibility = View.GONE
+            barVisible = false
+            clockHandler.removeCallbacks(hideBarRunnable)
+        } else {
+            topBar.visibility = View.VISIBLE
+            barVisible = true
+            scheduleHideBar()
+        }
+    }
+
+    private fun attachAnalytics() {
         player?.addAnalyticsListener(object : AnalyticsListener {
             override fun onVideoInputFormatChanged(
                 eventTime: AnalyticsListener.EventTime,
                 format: Format,
                 decoderReuseEvaluation: androidx.media3.exoplayer.DecoderReuseEvaluation?
-            ) {
-                updateStreamInfo(format)
-            }
+            ) { updateStreamInfo(format) }
         })
-
-        findViewById<View>(R.id.player).setOnClickListener {
-            if (barVisible) {
-                topBar.visibility = View.GONE
-                barVisible = false
-                clockHandler.removeCallbacks(hideBarRunnable)
-            } else {
-                topBar.visibility = View.VISIBLE
-                barVisible = true
-                scheduleHideBar()
-            }
-        }
-
-        val btnPrev = findViewById<ImageButton>(R.id.exo_rew)
-        btnPrev.setOnClickListener { switchChannel(-1) }
-
-        val btnNext = findViewById<ImageButton>(R.id.exo_ffwd)
-        btnNext.setOnClickListener { switchChannel(1) }
-
-        if (urls.isNotEmpty() && currentIndex in urls.indices) {
-            play(currentIndex)
-        }
-        clockHandler.post(clockTick)
-        scheduleHideBar()
     }
 
     private fun scheduleHideBar() {
@@ -127,10 +155,9 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun hideSystemBars() {
-        val controller = WindowInsetsControllerCompat(window, window.decorView)
-        controller.hide(WindowInsetsCompat.Type.systemBars())
-        controller.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        val c = WindowInsetsControllerCompat(window, window.decorView)
+        c.hide(WindowInsetsCompat.Type.systemBars())
+        c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
 
     private fun switchChannel(delta: Int) {
@@ -152,8 +179,7 @@ class PlayerActivity : AppCompatActivity() {
         titleView.text = if (group.isNotEmpty()) "$name  ·  $group" else name
 
         val useUa = ua.ifEmpty { "IPTV/1.0" }
-
-        val dsFactory = DefaultHttpDataSource.Factory()
+        val ds = DefaultHttpDataSource.Factory()
             .setUserAgent(useUa)
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(15000)
@@ -161,42 +187,29 @@ class PlayerActivity : AppCompatActivity() {
 
         player?.release()
         player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dsFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(ds))
             .build()
         findViewById<PlayerView>(R.id.player).player = player
+        attachAnalytics()
 
-        player?.addAnalyticsListener(object : AnalyticsListener {
-            override fun onVideoInputFormatChanged(
-                eventTime: AnalyticsListener.EventTime,
-                format: Format,
-                decoderReuseEvaluation: androidx.media3.exoplayer.DecoderReuseEvaluation?
-            ) {
-                updateStreamInfo(format)
-            }
-        })
-
-        val itemBuilder = MediaItem.Builder().setUri(url)
+        val b = MediaItem.Builder().setUri(url)
         if (url.contains(".m3u8") || url.contains("kinowalk.hopto.org")) {
-            itemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
+            b.setMimeType(MimeTypes.APPLICATION_M3U8)
         }
         player?.apply {
-            setMediaItem(itemBuilder.build())
+            setMediaItem(b.build())
             prepare()
             playWhenReady = true
         }
     }
 
     private fun updateStreamInfo(format: Format) {
-        val w = format.width
-        val h = format.height
+        val w = format.width; val h = format.height
         val bitrate = format.bitrate
         val codec = format.codecs ?: format.sampleMimeType ?: "?"
-
         val res = if (w > 0 && h > 0) "${w}×${h}" else "?"
         val br = if (bitrate > 0) "${bitrate / 1000} kbps" else "?"
-        val cd = codec.substringBefore('.').uppercase()
-            .replace("VIDEO/", "").replace("AUDIO/", "")
-
+        val cd = codec.substringBefore('.').uppercase().replace("VIDEO/", "").replace("AUDIO/", "")
         infoView.text = "$res · $br · $cd"
     }
 
@@ -205,57 +218,41 @@ class PlayerActivity : AppCompatActivity() {
         val live = urls.getOrNull(currentIndex) ?: return null
         if (cs.isEmpty()) return null
         val params = cs.replace("\${offset}", secondsAgo.toString())
-        return if (live.contains("?")) {
-            live + "&" + params.removePrefix("?")
-        } else {
-            if (params.startsWith("?")) live + params
-            else live + "?" + params
-        }
+        return if (live.contains("?")) live + "&" + params.removePrefix("?")
+        else if (params.startsWith("?")) live + params else live + "?" + params
     }
 
     private fun showArchiveDialog() {
         val days = catchupDaysArr.getOrNull(currentIndex) ?: 0
         val cs = catchups.getOrNull(currentIndex) ?: ""
-
         if (days <= 0 || cs.isEmpty()) {
             AlertDialog.Builder(this)
                 .setTitle("Архив недоступен")
                 .setMessage("Для этого канала архив не поддерживается.")
-                .setPositiveButton("OK", null)
-                .show()
+                .setPositiveButton("OK", null).show()
             return
         }
-
         val options = listOf(
-            1 to "1 час назад",
-            2 to "2 часа назад",
-            3 to "3 часа назад",
-            6 to "6 часов назад",
-            12 to "12 часов назад",
-            24 to "1 день назад",
-            48 to "2 дня назад"
+            1 to "1 час назад", 2 to "2 часа назад", 3 to "3 часа назад",
+            6 to "6 часов назад", 12 to "12 часов назад",
+            24 to "1 день назад", 48 to "2 дня назад"
         ).filter { it.first <= days * 24 }
-
         if (options.isEmpty()) {
-            AlertDialog.Builder(this)
-                .setTitle("Архив недоступен")
-                .setMessage("Для этого канала архив не поддерживается.")
-                .setPositiveButton("OK", null)
-                .show()
+            AlertDialog.Builder(this).setTitle("Архив недоступен")
+                .setMessage("Нет доступных интервалов.")
+                .setPositiveButton("OK", null).show()
             return
         }
-
         AlertDialog.Builder(this)
             .setTitle("Смотреть из архива")
             .setItems(options.map { it.second }.toTypedArray()) { _, which ->
                 val hours = options[which].first
-                val archiveUrl = buildArchiveUrl(hours * 3600)
-                if (archiveUrl != null) {
+                buildArchiveUrl(hours * 3600)?.let { url ->
                     val name = names.getOrNull(currentIndex) ?: ""
                     titleView.text = "$name · архив $hours ч назад"
-                    val currentUa = uas.getOrNull(currentIndex) ?: ""
+                    val ua = uas.getOrNull(currentIndex) ?: ""
                     val ds = DefaultHttpDataSource.Factory()
-                        .setUserAgent(currentUa.ifEmpty { "IPTV/1.0" })
+                        .setUserAgent(ua.ifEmpty { "IPTV/1.0" })
                         .setAllowCrossProtocolRedirects(true)
                     player?.release()
                     player = ExoPlayer.Builder(this)
@@ -263,31 +260,20 @@ class PlayerActivity : AppCompatActivity() {
                         .build()
                     findViewById<PlayerView>(R.id.player).player = player
                     player?.apply {
-                        setMediaItem(MediaItem.fromUri(archiveUrl))
-                        prepare()
-                        playWhenReady = true
+                        setMediaItem(MediaItem.fromUri(url))
+                        prepare(); playWhenReady = true
                     }
                 }
             }
-            .setNegativeButton("Отмена", null)
-            .show()
+            .setNegativeButton("Отмена", null).show()
     }
 
-    override fun onPause() {
-        super.onPause()
-        player?.pause()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        hideSystemBars()
-    }
-
+    override fun onPause() { super.onPause(); player?.pause() }
+    override fun onResume() { super.onResume(); hideSystemBars() }
     override fun onDestroy() {
         super.onDestroy()
         clockHandler.removeCallbacks(clockTick)
         clockHandler.removeCallbacks(hideBarRunnable)
-        player?.release()
-        player = null
+        player?.release(); player = null
     }
 }

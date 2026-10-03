@@ -34,11 +34,24 @@
             android:maxLines="1" />
 
         <TextView
+            android:id="@+id/btn_refresh"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:text="🔄"
+            android:textColor="#e6e6e6"
+            android:textSize="20sp"
+            android:background="?android:attr/selectableItemBackground" />
+
+        <TextView
             android:id="@+id/btn_settings"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="14dp"
-            android:paddingEnd="14dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
             android:paddingTop="10dp"
             android:paddingBottom="10dp"
             android:text="⚙"

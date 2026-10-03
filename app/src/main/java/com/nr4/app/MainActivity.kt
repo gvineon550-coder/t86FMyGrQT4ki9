@@ -70,6 +70,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var searchInput: EditText
     private lateinit var chipsWrap: LinearLayout
     private lateinit var statusView: TextView
+    private lateinit var activeNameView: TextView
     private var adapter: ChannelAdapter? = null
 
     private var allChannels: List<Channel> = emptyList()
@@ -117,6 +118,14 @@ class MainActivity : AppCompatActivity() {
         return a.ifEmpty { builtInUrl() }
     }
 
+    private fun activeName(): String {
+        val a = AppPrefs.getActive(this)
+        if (a.isEmpty()) return "Встроенный (all_checked.m3u8)"
+        val list = AppPrefs.getPlaylists(this)
+        val found = list.firstOrNull { it.url == a }
+        return found?.name ?: a.substringAfterLast('/').ifEmpty { "Плейлист" }
+    }
+
     private fun exitApp() {
         try { player?.release(); player = null } catch (_: Exception) {}
         finishAffinity()
@@ -144,8 +153,8 @@ class MainActivity : AppCompatActivity() {
         searchInput = findViewById(R.id.search)
         chipsWrap = findViewById(R.id.chips)
         statusView = findViewById(R.id.status)
+        activeNameView = findViewById(R.id.active_name)
 
-        // Ширина панели 85% от ширины экрана
         val dm = resources.displayMetrics
         val panelWidth = (dm.widthPixels * 0.85).toInt()
         val lp = sidePanel.layoutParams
@@ -166,6 +175,10 @@ class MainActivity : AppCompatActivity() {
             loadedFrom = src
             Toast.makeText(this, "Обновляю...", Toast.LENGTH_SHORT).show()
             reload(src)
+        }
+        findViewById<View>(R.id.btn_playlist).setOnClickListener {
+            lastActivityTime = System.currentTimeMillis()
+            showPlaylistSwitcher()
         }
 
         searchInput.addTextChangedListener(object : TextWatcher {
@@ -198,6 +211,47 @@ class MainActivity : AppCompatActivity() {
         scheduleHideBar()
     }
 
+    // ── Переключатель плейлистов ─────────────────────────
+    private fun showPlaylistSwitcher() {
+        val saved = AppPrefs.getPlaylists(this)
+        val names = ArrayList<String>()
+        val paths = ArrayList<String>()
+
+        names.add("Встроенный (all_checked.m3u8)")
+        paths.add("")
+
+        for (s in saved) {
+            names.add(s.name)
+            paths.add(s.url)
+        }
+
+        val current = AppPrefs.getActive(this)
+        val checkedItem = paths.indexOfFirst { it == current }.let {
+            if (it < 0) 0 else it
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Сменить плейлист")
+            .setSingleChoiceItems(names.toTypedArray(), checkedItem) { dialog, which ->
+                val newUrl = paths[which]
+                AppPrefs.setActive(this, newUrl)
+                dialog.dismiss()
+                loadedFrom = activeSource()
+                Toast.makeText(this, "Активен: ${names[which]}", Toast.LENGTH_SHORT).show()
+                reload(loadedFrom)
+                updateActiveName()
+            }
+            .setNegativeButton("Отмена", null)
+            .setNeutralButton("Настроить") { _, _ ->
+                startActivity(Intent(this, SettingsActivity::class.java))
+            }
+            .show()
+    }
+
+    private fun updateActiveName() {
+        activeNameView.text = "Активный: " + activeName()
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     private fun handlePlayerTouch(v: View, e: MotionEvent): Boolean {
         when (e.actionMasked) {
@@ -214,10 +268,8 @@ class MainActivity : AppCompatActivity() {
 
                 if (abs(dx) > 90 && abs(dx) > abs(dy) * 1.5) {
                     if (dx > 0) {
-                        // Свайп вправо — открыть панель
                         showPanel()
                     } else {
-                        // Свайп влево — переключение канала
                         switchChannel(1)
                     }
                     v.performClick()
@@ -249,7 +301,6 @@ class MainActivity : AppCompatActivity() {
 
                 if (abs(dx) > 100 && abs(dx) > abs(dy) * 1.5) {
                     if (dx < 0) {
-                        // Свайп влево по панели — закрыть
                         hidePanel()
                         return true
                     }
@@ -265,40 +316,26 @@ class MainActivity : AppCompatActivity() {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> {
                 if (panelVisible) {
-                    // Назад по группам
-                    prevGroup()
-                    return true
+                    prevGroup(); return true
                 }
-                switchChannel(-1)
-                return true
+                switchChannel(-1); return true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 if (panelVisible) {
-                    nextGroup()
-                    return true
+                    nextGroup(); return true
                 }
-                switchChannel(1)
-                return true
+                switchChannel(1); return true
             }
             KeyEvent.KEYCODE_DPAD_DOWN -> {
-                if (!panelVisible) {
-                    showPanel()
-                    return true
-                }
+                if (!panelVisible) { showPanel(); return true }
                 return super.onKeyDown(keyCode, event)
             }
             KeyEvent.KEYCODE_DPAD_UP -> {
-                if (panelVisible) {
-                    hidePanel()
-                    return true
-                }
+                if (panelVisible) { hidePanel(); return true }
                 return super.onKeyDown(keyCode, event)
             }
             KeyEvent.KEYCODE_BACK -> {
-                if (panelVisible) {
-                    hidePanel()
-                    return true
-                }
+                if (panelVisible) { hidePanel(); return true }
                 return super.onKeyDown(keyCode, event)
             }
         }
@@ -312,6 +349,7 @@ class MainActivity : AppCompatActivity() {
         scrim.visibility = View.VISIBLE
         hintList.visibility = View.GONE
         topBar.visibility = View.GONE
+        updateActiveName()
     }
 
     private fun hidePanel() {
@@ -361,6 +399,7 @@ class MainActivity : AppCompatActivity() {
                     searchInput.setText("")
                     renderChips()
                     applyFilter()
+                    updateActiveName()
                     if (visibleChannels.isNotEmpty()) {
                         currentIndex = 0
                         play(0)
@@ -561,7 +600,7 @@ class MainActivity : AppCompatActivity() {
         if (ch.catchupDays <= 0 || ch.catchupSource.isEmpty()) {
             AlertDialog.Builder(this)
                 .setTitle("Архив недоступен")
-                .setMessage("Для этого канала архив не поддерживается.\n\nУбедись, что активен плейлист с архивом (например, Zabava) — в настройках ⚙.")
+                .setMessage("Для этого канала архив не поддерживается.\n\nУбедись, что активен плейлист с архивом (Zabava) — тапни 📂 в панели.")
                 .setPositiveButton("OK", null).show()
             return
         }
@@ -625,6 +664,8 @@ class MainActivity : AppCompatActivity() {
         if (src != loadedFrom) {
             loadedFrom = src
             reload(src)
+        } else {
+            updateActiveName()
         }
     }
 

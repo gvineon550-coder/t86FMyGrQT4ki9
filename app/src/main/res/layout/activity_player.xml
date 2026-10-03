@@ -10,15 +10,43 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:use_controller="true"
-        app:show_buffering="when_playing" />
+        app:show_buffering="when_playing"
+        app:controller_layout_id="@layout/exo_controls"
+        app:resize_mode="fit" />
 
-    <TextView
-        android:id="@+id/title"
+    <LinearLayout
+        android:id="@+id/top_bar"
+        android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
-        android:padding="12dp"
-        android:background="#80000000"
-        android:textColor="#ffffff"
-        android:textSize="14sp" />
+        android:background="#99000000"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#ffffff"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/stream_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#a0a0a0"
+            android:textSize="11sp"
+            android:layout_marginTop="4dp"
+            android:fontFamily="monospace" />
+
+        <TextView
+            android:id="@+id/clock"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#a0a0a0"
+            android:textSize="11sp"
+            android:layout_marginTop="2dp"
+            android:fontFamily="monospace" />
+    </LinearLayout>
 </FrameLayout>

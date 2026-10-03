@@ -2,9 +2,12 @@ package com.nr4.app
 
 import android.content.Intent
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -30,7 +33,9 @@ data class Channel(
 class MainActivity : AppCompatActivity() {
 
     private var allChannels: List<Channel> = emptyList()
+    private var visibleChannels: List<Channel> = emptyList()
     private var currentGroup: String? = null
+    private var searchQuery: String = ""
     private var adapter: ChannelAdapter? = null
 
     private fun decodePlaylistUrl(): String {
@@ -50,19 +55,27 @@ class MainActivity : AppCompatActivity() {
         val list = findViewById<RecyclerView>(R.id.list)
         list.layoutManager = LinearLayoutManager(this)
 
+        findViewById<View>(R.id.btn_settings).setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        val searchInput = findViewById<EditText>(R.id.search)
+        searchInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                searchQuery = s?.toString()?.trim()?.lowercase() ?: ""
+                applyFilter()
+            }
+        })
+
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val channels = loadPlaylist(decodePlaylistUrl())
                 withContext(Dispatchers.Main) {
                     allChannels = channels
-                    adapter = ChannelAdapter(emptyList()) { ch ->
-                        val i = Intent(this@MainActivity, PlayerActivity::class.java)
-                        i.putExtra("url", ch.url)
-                        i.putExtra("name", ch.name)
-                        i.putExtra("userAgent", ch.userAgent)
-                        i.putExtra("catchupSource", ch.catchupSource)
-                        i.putExtra("catchupDays", ch.catchupDays)
-                        startActivity(i)
+                    adapter = ChannelAdapter(emptyList()) { index ->
+                        openPlayer(index)
                     }
                     list.adapter = adapter
                     renderChips()
@@ -74,6 +87,34 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun openPlayer(index: Int) {
+        val urls = ArrayList<String>(visibleChannels.size)
+        val names = ArrayList<String>(visibleChannels.size)
+        val groups = ArrayList<String>(visibleChannels.size)
+        val uas = ArrayList<String>(visibleChannels.size)
+        val catchups = ArrayList<String>(visibleChannels.size)
+        val catchupDaysArr = ArrayList<Int>(visibleChannels.size)
+
+        for (c in visibleChannels) {
+            urls.add(c.url)
+            names.add(c.name)
+            groups.add(c.group)
+            uas.add(c.userAgent)
+            catchups.add(c.catchupSource)
+            catchupDaysArr.add(c.catchupDays)
+        }
+
+        val i = Intent(this, PlayerActivity::class.java)
+        i.putStringArrayListExtra("urls", urls)
+        i.putStringArrayListExtra("names", names)
+        i.putStringArrayListExtra("groups", groups)
+        i.putStringArrayListExtra("uas", uas)
+        i.putStringArrayListExtra("catchups", catchups)
+        i.putIntegerArrayListExtra("catchupDays", catchupDaysArr)
+        i.putExtra("index", index)
+        startActivity(i)
     }
 
     private fun loadPlaylist(url: String): List<Channel> {
@@ -162,16 +203,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyFilter() {
-        val filtered = if (currentGroup == null) allChannels
+        var list = if (currentGroup == null) allChannels
             else allChannels.filter { it.group.ifEmpty { "Без группы" } == currentGroup }
-        findViewById<TextView>(R.id.status).text = "Каналов: ${filtered.size}"
-        adapter?.update(filtered)
+
+        if (searchQuery.isNotEmpty()) {
+            list = list.filter { it.name.lowercase().contains(searchQuery) }
+        }
+
+        visibleChannels = list
+        findViewById<TextView>(R.id.status).text = "Каналов: ${list.size}"
+        adapter?.update(list)
     }
 }
 
 class ChannelAdapter(
     private var items: List<Channel>,
-    private val onClick: (Channel) -> Unit
+    private val onClick: (Int) -> Unit
 ) : RecyclerView.Adapter<ChannelAdapter.VH>() {
 
     class VH(v: View) : RecyclerView.ViewHolder(v) {
@@ -194,7 +241,7 @@ class ChannelAdapter(
         val ch = items[position]
         holder.name.text = ch.name
         holder.group.text = ch.group
-        holder.itemView.setOnClickListener { onClick(ch) }
+        holder.itemView.setOnClickListener { onClick(position) }
     }
 
     override fun getItemCount() = items.size

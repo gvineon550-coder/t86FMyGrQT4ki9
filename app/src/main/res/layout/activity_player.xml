@@ -50,6 +50,16 @@
             android:fontFamily="monospace" />
     </LinearLayout>
 
+    <!-- Полоса-ручка слева для свайпа -->
+    <View
+        android:id="@+id/edge_handle"
+        android:layout_width="12dp"
+        android:layout_height="100dp"
+        android:layout_gravity="start|center_vertical"
+        android:layout_marginStart="4dp"
+        android:background="#66ffffff" />
+
+    <!-- Подсказка для смартфона -->
     <TextView
         android:id="@+id/hint_list"
         android:layout_width="wrap_content"
@@ -58,7 +68,7 @@
         android:layout_marginStart="16dp"
         android:layout_marginBottom="16dp"
         android:padding="10dp"
-        android:text="▶ Список каналов"
+        android:text="▶ Список каналов\n(свайп от левого края)"
         android:textColor="#ccffffff"
         android:textSize="13sp"
         android:background="#66000000" />

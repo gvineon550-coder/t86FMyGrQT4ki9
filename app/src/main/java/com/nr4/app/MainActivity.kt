@@ -33,8 +33,6 @@ class MainActivity : AppCompatActivity() {
     private var currentGroup: String? = null
     private var adapter: ChannelAdapter? = null
 
-    // Ссылка на плейлист собирается из частей в рантайме.
-    // Прямая строка URL в коде не хранится.
     private fun decodePlaylistUrl(): String {
         val a = "https"
         val b = "://"
@@ -140,8 +138,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         for ((g, n) in groups) {
-            val isActive = (g == "Все" && currentGroup == null) ||
-                           (g == currentGroup)
+            val isActive = (g == "Все" && currentGroup == null) || (g == currentGroup)
             val chip = TextView(this).apply {
                 text = "$g ($n)"
                 textSize = 13f

@@ -3,6 +3,7 @@ package com.nr4.app
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -63,6 +64,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var clockView: TextView
     private lateinit var topBar: View
     private lateinit var hintList: TextView
+    private lateinit var edgeHandle: View
 
     private lateinit var sidePanel: View
     private lateinit var scrim: View
@@ -109,6 +111,7 @@ class MainActivity : AppCompatActivity() {
     private var downX = 0f
     private var downY = 0f
     private var downT = 0L
+    private var fromEdge = false
 
     private fun builtInUrl(): String =
         "https" + "://" + "gvineon550-coder" + ".github.io/" + "8Z6evf3ezzM469" + "/all_checked.m3u8"
@@ -147,6 +150,7 @@ class MainActivity : AppCompatActivity() {
         clockView = findViewById(R.id.clock)
         topBar = findViewById(R.id.top_bar)
         hintList = findViewById(R.id.hint_list)
+        edgeHandle = findViewById(R.id.edge_handle)
         sidePanel = findViewById(R.id.side_panel)
         scrim = findViewById(R.id.scrim)
         list = findViewById(R.id.list)
@@ -192,9 +196,11 @@ class MainActivity : AppCompatActivity() {
         })
 
         hintList.setOnClickListener { showPanel() }
+        edgeHandle.setOnClickListener { showPanel() }
         scrim.setOnClickListener { hidePanel() }
 
         playerView.setOnTouchListener { v, e -> handlePlayerTouch(v, e) }
+        edgeHandle.setOnTouchListener { v, e -> handleEdgeTouch(v, e) }
         sidePanel.setOnTouchListener { v, e -> handlePanelTouch(v, e) }
 
         titleView.setOnLongClickListener {
@@ -211,7 +217,11 @@ class MainActivity : AppCompatActivity() {
         scheduleHideBar()
     }
 
-    // ── Переключатель плейлистов ─────────────────────────
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        hideSystemBars()
+    }
+
     private fun showPlaylistSwitcher() {
         val saved = AppPrefs.getPlaylists(this)
         val names = ArrayList<String>()
@@ -257,6 +267,7 @@ class MainActivity : AppCompatActivity() {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = e.x; downY = e.y; downT = System.currentTimeMillis()
+                fromEdge = e.x < 80
                 lastActivityTime = System.currentTimeMillis()
                 return false
             }
@@ -266,17 +277,40 @@ class MainActivity : AppCompatActivity() {
                 val dt = System.currentTimeMillis() - downT
                 lastActivityTime = System.currentTimeMillis()
 
-                if (abs(dx) > 90 && abs(dx) > abs(dy) * 1.5) {
-                    if (dx > 0) {
-                        showPanel()
-                    } else {
-                        switchChannel(1)
-                    }
+                if (fromEdge && dx > 60 && abs(dx) > abs(dy) * 1.5) {
+                    showPanel()
+                    v.performClick()
+                    return true
+                }
+                if (abs(dx) > 90 && abs(dx) > abs(dy) * 1.5 && !fromEdge) {
+                    if (dx > 0) showPanel() else switchChannel(1)
                     v.performClick()
                     return true
                 }
                 if (abs(dx) < 20 && abs(dy) < 20 && dt < 300) {
                     toggleBar()
+                    v.performClick()
+                    return true
+                }
+                return false
+            }
+        }
+        return false
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun handleEdgeTouch(v: View, e: MotionEvent): Boolean {
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = e.x; downY = e.y; downT = System.currentTimeMillis()
+                return false
+            }
+            MotionEvent.ACTION_UP -> {
+                val dx = e.x - downX
+                val dy = e.y - downY
+                lastActivityTime = System.currentTimeMillis()
+                if (dx > 30 && abs(dx) > abs(dy)) {
+                    showPanel()
                     v.performClick()
                     return true
                 }
@@ -334,6 +368,10 @@ class MainActivity : AppCompatActivity() {
                 if (panelVisible) { hidePanel(); return true }
                 return super.onKeyDown(keyCode, event)
             }
+            KeyEvent.KEYCODE_MENU -> {
+                if (!panelVisible) { showPanel(); return true }
+                return super.onKeyDown(keyCode, event)
+            }
             KeyEvent.KEYCODE_BACK -> {
                 if (panelVisible) { hidePanel(); return true }
                 return super.onKeyDown(keyCode, event)
@@ -348,6 +386,7 @@ class MainActivity : AppCompatActivity() {
         sidePanel.visibility = View.VISIBLE
         scrim.visibility = View.VISIBLE
         hintList.visibility = View.GONE
+        edgeHandle.visibility = View.GONE
         topBar.visibility = View.GONE
         updateActiveName()
     }
@@ -358,6 +397,7 @@ class MainActivity : AppCompatActivity() {
         sidePanel.visibility = View.GONE
         scrim.visibility = View.GONE
         hintList.visibility = View.VISIBLE
+        edgeHandle.visibility = View.VISIBLE
         topBar.visibility = View.VISIBLE
         scheduleHideBar()
     }

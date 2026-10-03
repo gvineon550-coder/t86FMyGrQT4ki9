@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.gvineon.iptv"
+    namespace = "com.nr4.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.gvineon.iptv"
+        applicationId = "com.nr4.app"
         minSdk = 21
         targetSdk = 34
         versionCode = 1

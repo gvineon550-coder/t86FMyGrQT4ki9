@@ -63,8 +63,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var infoView: TextView
     private lateinit var clockView: TextView
     private lateinit var topBar: View
-    private lateinit var hintList: TextView
-    private lateinit var edgeHandle: View
 
     private lateinit var sidePanel: View
     private lateinit var scrim: View
@@ -111,7 +109,11 @@ class MainActivity : AppCompatActivity() {
     private var downX = 0f
     private var downY = 0f
     private var downT = 0L
-    private var fromEdge = false
+    private var fromRightEdge = false
+
+    // Автоскрытие панели
+    private val PANEL_AUTO_HIDE_MS = 8_000L
+    private var panelHideRunnable: Runnable? = null
 
     private fun builtInUrl(): String =
         "https" + "://" + "gvineon550-coder" + ".github.io/" + "8Z6evf3ezzM469" + "/all_checked.m3u8"
@@ -149,8 +151,6 @@ class MainActivity : AppCompatActivity() {
         infoView = findViewById(R.id.stream_info)
         clockView = findViewById(R.id.clock)
         topBar = findViewById(R.id.top_bar)
-        hintList = findViewById(R.id.hint_list)
-        edgeHandle = findViewById(R.id.edge_handle)
         sidePanel = findViewById(R.id.side_panel)
         scrim = findViewById(R.id.scrim)
         list = findViewById(R.id.list)
@@ -160,7 +160,7 @@ class MainActivity : AppCompatActivity() {
         activeNameView = findViewById(R.id.active_name)
 
         val dm = resources.displayMetrics
-        val panelWidth = (dm.widthPixels * 0.85).toInt()
+        val panelWidth = (dm.widthPixels * 0.55).toInt()
         val lp = sidePanel.layoutParams
         lp.width = panelWidth
         sidePanel.layoutParams = lp
@@ -170,18 +170,18 @@ class MainActivity : AppCompatActivity() {
         list.adapter = adapter
 
         findViewById<View>(R.id.btn_settings).setOnClickListener {
-            lastActivityTime = System.currentTimeMillis()
+            tapActivity()
             startActivity(Intent(this, SettingsActivity::class.java))
         }
         findViewById<View>(R.id.btn_refresh).setOnClickListener {
-            lastActivityTime = System.currentTimeMillis()
+            tapActivity()
             val src = activeSource()
             loadedFrom = src
             Toast.makeText(this, "Обновляю...", Toast.LENGTH_SHORT).show()
             reload(src)
         }
         findViewById<View>(R.id.btn_playlist).setOnClickListener {
-            lastActivityTime = System.currentTimeMillis()
+            tapActivity()
             showPlaylistSwitcher()
         }
 
@@ -189,18 +189,14 @@ class MainActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                lastActivityTime = System.currentTimeMillis()
+                tapActivity()
                 searchQuery = s?.toString()?.trim()?.lowercase() ?: ""
                 applyFilter()
             }
         })
 
-        hintList.setOnClickListener { showPanel() }
-        edgeHandle.setOnClickListener { showPanel() }
         scrim.setOnClickListener { hidePanel() }
-
         playerView.setOnTouchListener { v, e -> handlePlayerTouch(v, e) }
-        edgeHandle.setOnTouchListener { v, e -> handleEdgeTouch(v, e) }
         sidePanel.setOnTouchListener { v, e -> handlePanelTouch(v, e) }
 
         titleView.setOnLongClickListener {
@@ -215,6 +211,22 @@ class MainActivity : AppCompatActivity() {
         clockHandler.post(clockTick)
         clockHandler.post(idleCheck)
         scheduleHideBar()
+
+        // Подсказка один раз
+        val seen = getSharedPreferences("iptv_prefs", MODE_PRIVATE)
+            .getBoolean("hint_shown", false)
+        if (!seen) {
+            Toast.makeText(this,
+                "Свайп влево от правого края — список каналов",
+                Toast.LENGTH_LONG).show()
+            getSharedPreferences("iptv_prefs", MODE_PRIVATE)
+                .edit().putBoolean("hint_shown", true).apply()
+        }
+    }
+
+    private fun tapActivity() {
+        lastActivityTime = System.currentTimeMillis()
+        if (panelVisible) resetPanelAutoHide()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -243,8 +255,7 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Сменить плейлист")
             .setSingleChoiceItems(names.toTypedArray(), checkedItem) { dialog, which ->
-                val newUrl = paths[which]
-                AppPrefs.setActive(this, newUrl)
+                AppPrefs.setActive(this, paths[which])
                 dialog.dismiss()
                 loadedFrom = activeSource()
                 Toast.makeText(this, "Активен: ${names[which]}", Toast.LENGTH_SHORT).show()
@@ -267,7 +278,7 @@ class MainActivity : AppCompatActivity() {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = e.x; downY = e.y; downT = System.currentTimeMillis()
-                fromEdge = e.x < 80
+                fromRightEdge = e.x > v.width - 80
                 lastActivityTime = System.currentTimeMillis()
                 return false
             }
@@ -277,12 +288,12 @@ class MainActivity : AppCompatActivity() {
                 val dt = System.currentTimeMillis() - downT
                 lastActivityTime = System.currentTimeMillis()
 
-                if (fromEdge && dx > 60 && abs(dx) > abs(dy) * 1.5) {
+                if (fromRightEdge && dx < -60 && abs(dx) > abs(dy) * 1.5) {
                     showPanel()
                     v.performClick()
                     return true
                 }
-                if (abs(dx) > 90 && abs(dx) > abs(dy) * 1.5 && !fromEdge) {
+                if (abs(dx) > 90 && abs(dx) > abs(dy) * 1.5 && !fromRightEdge) {
                     if (dx > 0) showPanel() else switchChannel(1)
                     v.performClick()
                     return true
@@ -299,45 +310,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun handleEdgeTouch(v: View, e: MotionEvent): Boolean {
-        when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                downX = e.x; downY = e.y; downT = System.currentTimeMillis()
-                return false
-            }
-            MotionEvent.ACTION_UP -> {
-                val dx = e.x - downX
-                val dy = e.y - downY
-                lastActivityTime = System.currentTimeMillis()
-                if (dx > 30 && abs(dx) > abs(dy)) {
-                    showPanel()
-                    v.performClick()
-                    return true
-                }
-                return false
-            }
-        }
-        return false
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
     private fun handlePanelTouch(v: View, e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = e.x; downY = e.y; downT = System.currentTimeMillis()
-                lastActivityTime = System.currentTimeMillis()
+                tapActivity()
+                return false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                tapActivity()
                 return false
             }
             MotionEvent.ACTION_UP -> {
                 val dx = e.x - downX
                 val dy = e.y - downY
-                lastActivityTime = System.currentTimeMillis()
+                tapActivity()
 
-                if (abs(dx) > 100 && abs(dx) > abs(dy) * 1.5) {
-                    if (dx < 0) {
-                        hidePanel()
-                        return true
-                    }
+                if (abs(dx) > 100 && abs(dx) > abs(dy) * 1.5 && dx > 0) {
+                    hidePanel()
+                    return true
                 }
                 return false
             }
@@ -347,17 +338,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         lastActivityTime = System.currentTimeMillis()
+        if (panelVisible) resetPanelAutoHide()
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (panelVisible) {
-                    prevGroup(); return true
-                }
+                if (panelVisible) { prevGroup(); return true }
                 switchChannel(-1); return true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (panelVisible) {
-                    nextGroup(); return true
-                }
+                if (panelVisible) { nextGroup(); return true }
                 switchChannel(1); return true
             }
             KeyEvent.KEYCODE_DPAD_DOWN -> {
@@ -385,10 +373,9 @@ class MainActivity : AppCompatActivity() {
         panelVisible = true
         sidePanel.visibility = View.VISIBLE
         scrim.visibility = View.VISIBLE
-        hintList.visibility = View.GONE
-        edgeHandle.visibility = View.GONE
         topBar.visibility = View.GONE
         updateActiveName()
+        resetPanelAutoHide()
     }
 
     private fun hidePanel() {
@@ -396,10 +383,16 @@ class MainActivity : AppCompatActivity() {
         panelVisible = false
         sidePanel.visibility = View.GONE
         scrim.visibility = View.GONE
-        hintList.visibility = View.VISIBLE
-        edgeHandle.visibility = View.VISIBLE
         topBar.visibility = View.VISIBLE
+        panelHideRunnable?.let { clockHandler.removeCallbacks(it) }
+        panelHideRunnable = null
         scheduleHideBar()
+    }
+
+    private fun resetPanelAutoHide() {
+        panelHideRunnable?.let { clockHandler.removeCallbacks(it) }
+        panelHideRunnable = Runnable { hidePanel() }
+        clockHandler.postDelayed(panelHideRunnable!!, PANEL_AUTO_HIDE_MS)
     }
 
     private fun toggleBar() {
@@ -515,12 +508,12 @@ class MainActivity : AppCompatActivity() {
             val count = if (g == "Все") allChannels.size else allChannels.count { it.group.ifEmpty { "Без группы" } == g }
             val chip = TextView(this).apply {
                 text = "$g ($count)"
-                textSize = 13f
-                setPadding(28, 14, 28, 14)
+                textSize = 12f
+                setPadding(24, 12, 24, 12)
                 setTextColor(if (isActive) dark else muted)
                 setBackgroundColor(if (isActive) accent else border)
                 setOnClickListener {
-                    lastActivityTime = System.currentTimeMillis()
+                    tapActivity()
                     currentGroupIndex = idx
                     renderChips()
                     applyFilter()
@@ -530,7 +523,7 @@ class MainActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
-            params.marginEnd = 12
+            params.marginEnd = 10
             chip.layoutParams = params
             chipsWrap.addView(chip)
         }
@@ -594,7 +587,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun selectChannel(idx: Int) {
-        lastActivityTime = System.currentTimeMillis()
+        tapActivity()
         play(idx)
         hidePanel()
     }
@@ -721,6 +714,7 @@ class MainActivity : AppCompatActivity() {
         clockHandler.removeCallbacks(clockTick)
         clockHandler.removeCallbacks(idleCheck)
         barHideRunnable?.let { clockHandler.removeCallbacks(it) }
+        panelHideRunnable?.let { clockHandler.removeCallbacks(it) }
         player?.release(); player = null
     }
 }

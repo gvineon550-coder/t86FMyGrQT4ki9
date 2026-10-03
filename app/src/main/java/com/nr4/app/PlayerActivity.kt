@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.WindowManager
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
@@ -26,16 +27,18 @@ import java.util.Locale
 class PlayerActivity : AppCompatActivity() {
 
     private var player: ExoPlayer? = null
-    private var liveUrl: String = ""
-    private var channelName: String = ""
-    private var userAgent: String = ""
-    private var catchupSource: String = ""
-    private var catchupDays: Int = 0
-
     private lateinit var titleView: TextView
     private lateinit var infoView: TextView
     private lateinit var clockView: TextView
     private lateinit var topBar: View
+
+    private var urls: ArrayList<String> = arrayListOf()
+    private var names: ArrayList<String> = arrayListOf()
+    private var groups: ArrayList<String> = arrayListOf()
+    private var uas: ArrayList<String> = arrayListOf()
+    private var catchups: ArrayList<String> = arrayListOf()
+    private var catchupDaysArr: ArrayList<Int> = arrayListOf()
+    private var currentIndex: Int = 0
 
     private val clockHandler = Handler(Looper.getMainLooper())
     private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
@@ -57,18 +60,19 @@ class PlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
 
-        liveUrl = intent.getStringExtra("url") ?: return
-        channelName = intent.getStringExtra("name") ?: ""
-        userAgent = intent.getStringExtra("userAgent") ?: ""
-        catchupSource = intent.getStringExtra("catchupSource") ?: ""
-        catchupDays = intent.getIntExtra("catchupDays", 0)
+        urls = intent.getStringArrayListExtra("urls") ?: arrayListOf()
+        names = intent.getStringArrayListExtra("names") ?: arrayListOf()
+        groups = intent.getStringArrayListExtra("groups") ?: arrayListOf()
+        uas = intent.getStringArrayListExtra("uas") ?: arrayListOf()
+        catchups = intent.getStringArrayListExtra("catchups") ?: arrayListOf()
+        catchupDaysArr = intent.getIntegerArrayListExtra("catchupDays") ?: arrayListOf()
+        currentIndex = intent.getIntExtra("index", 0)
 
         titleView = findViewById(R.id.title)
         infoView = findViewById(R.id.stream_info)
         clockView = findViewById(R.id.clock)
         topBar = findViewById(R.id.top_bar)
 
-        titleView.text = channelName
         titleView.setOnLongClickListener {
             showArchiveDialog()
             true
@@ -78,32 +82,9 @@ class PlayerActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemBars()
 
-        val isKinowalk = liveUrl.contains("kinowalk.hopto.org")
-
-        val ua = when {
-            userAgent.isNotEmpty() -> userAgent
-            isKinowalk -> "Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 " +
-                          "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-            else -> "IPTV/1.0"
-        }
-
-        val headers = mutableMapOf<String, String>()
-        if (isKinowalk) {
-            headers["Referer"] = "https://vk.com/"
-            headers["Origin"] = "https://vk.com"
-        }
-
-        val dsFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent(ua)
-            .setDefaultRequestProperties(headers)
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(15000)
-            .setReadTimeoutMs(15000)
-
-        player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dsFactory))
-            .build()
-        findViewById<PlayerView>(R.id.player).player = player
+        player = ExoPlayer.Builder(this).build()
+        val pv = findViewById<PlayerView>(R.id.player)
+        pv.player = player
 
         player?.addAnalyticsListener(object : AnalyticsListener {
             override fun onVideoInputFormatChanged(
@@ -127,7 +108,15 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        play(liveUrl)
+        val btnPrev = findViewById<ImageButton>(R.id.exo_rew)
+        btnPrev.setOnClickListener { switchChannel(-1) }
+
+        val btnNext = findViewById<ImageButton>(R.id.exo_ffwd)
+        btnNext.setOnClickListener { switchChannel(1) }
+
+        if (urls.isNotEmpty() && currentIndex in urls.indices) {
+            play(currentIndex)
+        }
         clockHandler.post(clockTick)
         scheduleHideBar()
     }
@@ -144,6 +133,59 @@ class PlayerActivity : AppCompatActivity() {
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
 
+    private fun switchChannel(delta: Int) {
+        if (urls.isEmpty()) return
+        var idx = currentIndex + delta
+        if (idx < 0) idx = urls.size - 1
+        if (idx >= urls.size) idx = 0
+        play(idx)
+    }
+
+    private fun play(index: Int) {
+        if (index !in urls.indices) return
+        currentIndex = index
+        val url = urls[index]
+        val name = names.getOrNull(index) ?: ""
+        val group = groups.getOrNull(index) ?: ""
+        val ua = uas.getOrNull(index) ?: ""
+
+        titleView.text = if (group.isNotEmpty()) "$name  ·  $group" else name
+
+        val useUa = ua.ifEmpty { "IPTV/1.0" }
+
+        val dsFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent(useUa)
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(15000)
+            .setReadTimeoutMs(15000)
+
+        player?.release()
+        player = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dsFactory))
+            .build()
+        findViewById<PlayerView>(R.id.player).player = player
+
+        player?.addAnalyticsListener(object : AnalyticsListener {
+            override fun onVideoInputFormatChanged(
+                eventTime: AnalyticsListener.EventTime,
+                format: Format,
+                decoderReuseEvaluation: androidx.media3.exoplayer.DecoderReuseEvaluation?
+            ) {
+                updateStreamInfo(format)
+            }
+        })
+
+        val itemBuilder = MediaItem.Builder().setUri(url)
+        if (url.contains(".m3u8") || url.contains("kinowalk.hopto.org")) {
+            itemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
+        }
+        player?.apply {
+            setMediaItem(itemBuilder.build())
+            prepare()
+            playWhenReady = true
+        }
+    }
+
     private fun updateStreamInfo(format: Format) {
         val w = format.width
         val h = format.height
@@ -158,37 +200,24 @@ class PlayerActivity : AppCompatActivity() {
         infoView.text = "$res · $br · $cd"
     }
 
-    private fun play(url: String) {
-        val isKinowalk = url.contains("kinowalk.hopto.org")
-
-        val itemBuilder = MediaItem.Builder().setUri(url)
-        if (isKinowalk || url.contains(".m3u8")) {
-            itemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
-        }
-        val item = itemBuilder.build()
-
-        player?.apply {
-            stop()
-            clearMediaItems()
-            setMediaItem(item)
-            prepare()
-            playWhenReady = true
-        }
-    }
-
     private fun buildArchiveUrl(secondsAgo: Int): String? {
-        if (catchupSource.isEmpty()) return null
-        val params = catchupSource.replace("\${offset}", secondsAgo.toString())
-        return if (liveUrl.contains("?")) {
-            liveUrl + "&" + params.removePrefix("?")
+        val cs = catchups.getOrNull(currentIndex) ?: return null
+        val live = urls.getOrNull(currentIndex) ?: return null
+        if (cs.isEmpty()) return null
+        val params = cs.replace("\${offset}", secondsAgo.toString())
+        return if (live.contains("?")) {
+            live + "&" + params.removePrefix("?")
         } else {
-            if (params.startsWith("?")) liveUrl + params
-            else liveUrl + "?" + params
+            if (params.startsWith("?")) live + params
+            else live + "?" + params
         }
     }
 
     private fun showArchiveDialog() {
-        if (catchupDays <= 0 || catchupSource.isEmpty()) {
+        val days = catchupDaysArr.getOrNull(currentIndex) ?: 0
+        val cs = catchups.getOrNull(currentIndex) ?: ""
+
+        if (days <= 0 || cs.isEmpty()) {
             AlertDialog.Builder(this)
                 .setTitle("Архив недоступен")
                 .setMessage("Для этого канала архив не поддерживается.")
@@ -205,7 +234,7 @@ class PlayerActivity : AppCompatActivity() {
             12 to "12 часов назад",
             24 to "1 день назад",
             48 to "2 дня назад"
-        ).filter { it.first <= catchupDays * 24 }
+        ).filter { it.first <= days * 24 }
 
         if (options.isEmpty()) {
             AlertDialog.Builder(this)
@@ -222,8 +251,22 @@ class PlayerActivity : AppCompatActivity() {
                 val hours = options[which].first
                 val archiveUrl = buildArchiveUrl(hours * 3600)
                 if (archiveUrl != null) {
-                    titleView.text = "$channelName · архив $hours ч назад"
-                    play(archiveUrl)
+                    val name = names.getOrNull(currentIndex) ?: ""
+                    titleView.text = "$name · архив $hours ч назад"
+                    val currentUa = uas.getOrNull(currentIndex) ?: ""
+                    val ds = DefaultHttpDataSource.Factory()
+                        .setUserAgent(currentUa.ifEmpty { "IPTV/1.0" })
+                        .setAllowCrossProtocolRedirects(true)
+                    player?.release()
+                    player = ExoPlayer.Builder(this)
+                        .setMediaSourceFactory(DefaultMediaSourceFactory(ds))
+                        .build()
+                    findViewById<PlayerView>(R.id.player).player = player
+                    player?.apply {
+                        setMediaItem(MediaItem.fromUri(archiveUrl))
+                        prepare()
+                        playWhenReady = true
+                    }
                 }
             }
             .setNegativeButton("Отмена", null)

@@ -15,7 +15,7 @@
         app:controller_layout_id="@layout/exo_controls"
         app:resize_mode="fit" />
 
-    <!-- Верхняя панель (инфо о канале, часы) -->
+    <!-- Верхняя панель: название, инфо, часы -->
     <LinearLayout
         android:id="@+id/top_bar"
         android:orientation="vertical"
@@ -52,37 +52,40 @@
             android:fontFamily="monospace" />
     </LinearLayout>
 
-    <!-- Кнопка-подсказка для вызова списка -->
+    <!-- Подсказка внизу слева -->
     <TextView
         android:id="@+id/hint_list"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="24dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="16dp"
+        android:layout_marginBottom="16dp"
         android:padding="10dp"
-        android:text="Список каналов ▼"
+        android:text="▶ Список каналов"
         android:textColor="#ccffffff"
         android:textSize="13sp"
         android:background="#66000000" />
 
-    <!-- Выезжающая панель со списком каналов -->
-    <LinearLayout
-        android:id="@+id/bottom_sheet"
-        android:orientation="vertical"
+    <!-- Затемнение справа от панели -->
+    <View
+        android:id="@+id/scrim"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
+        android:layout_height="match_parent"
+        android:background="#99000000"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <!-- Боковая панель слева (ширина выставится программно) -->
+    <LinearLayout
+        android:id="@+id/side_panel"
+        android:orientation="vertical"
+        android:layout_width="320dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
         android:background="#0f1115"
         android:visibility="gone"
         android:elevation="12dp">
-
-        <!-- Ручка для свайпа -->
-        <View
-            android:layout_width="40dp"
-            android:layout_height="4dp"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="8dp"
-            android:background="#666a70" />
 
         <!-- Строка поиска и кнопки -->
         <LinearLayout
@@ -92,7 +95,7 @@
             android:gravity="center_vertical"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
-            android:paddingTop="8dp">
+            android:paddingTop="12dp">
 
             <EditText
                 android:id="@+id/search"
@@ -146,7 +149,8 @@
             android:scrollbars="none"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
-            android:paddingTop="6dp">
+            android:paddingTop="8dp"
+            android:paddingBottom="6dp">
 
             <LinearLayout
                 android:id="@+id/chips"
@@ -155,15 +159,14 @@
                 android:layout_height="wrap_content" />
         </HorizontalScrollView>
 
-        <!-- Счётчик каналов -->
+        <!-- Счётчик -->
         <TextView
             android:id="@+id/status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
+            android:paddingBottom="6dp"
             android:textColor="#8a8f98"
             android:textSize="13sp"
             android:text="Загрузка плейлиста..." />
@@ -172,8 +175,6 @@
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/list"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:minHeight="240dp" />
+            android:layout_height="match_parent" />
     </LinearLayout>
 </FrameLayout>
